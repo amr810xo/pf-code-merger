@@ -89,12 +89,15 @@ if csv_file and pdf_files and st.button("🔄 Clean & Merge PDFs"):
                 with open(out_path, "wb") as f:
                     writer.write(f)
 
+                # ✅ Avoid crash by keeping file in memory
                 with open(out_path, "rb") as f:
-                    st.download_button(
-                        label=f"📥 Download Batch {batch_num + 1} ({len(batch_codes)} pages)",
-                        data=f,
-                        file_name=f"batch_{batch_num + 1}.pdf",
-                        mime="application/pdf"
-                    )
+                    file_bytes = f.read()
+
+                st.download_button(
+                    label=f"📥 Download Batch {batch_num + 1} ({len(batch_codes)} pages)",
+                    data=file_bytes,
+                    file_name=f"batch_{batch_num + 1}.pdf",
+                    mime="application/pdf"
+                )
 
     st.success("✅ All done! Download each batch above.")
