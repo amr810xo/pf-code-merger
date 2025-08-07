@@ -1,3 +1,4 @@
 streamlit
-PyPDF2
-pandas
+PyMuPDF
+reportlab
+fitz  # alias for PyMuPDF (if needed)
