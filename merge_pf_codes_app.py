@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from PyPDF2 import PdfReader, PdfWriter
@@ -9,9 +8,13 @@ import fitz  # PyMuPDF for cleaning PDFs
 
 st.title("📄 PF Code PDF Merger (Clean + Print-Ready)")
 
+# Upload CSV
 csv_file = st.file_uploader("Upload PF Code CSV (e.g. pf_codes_verified_complete.csv)", type=["csv"])
+
+# Upload PDFs
 pdf_files = st.file_uploader("Upload PF PDF files (e.g. PF01.pdf to PF26.pdf)", type=["pdf"], accept_multiple_files=True)
 
+# Batch size selector
 pages_per_batch = 100
 
 def clean_pdf(input_path, output_path):
@@ -19,8 +22,8 @@ def clean_pdf(input_path, output_path):
     new_doc = fitz.open()
     for page in doc:
         pix = page.get_pixmap(dpi=300)
-        img_pdf = fitz.open("pdf", fitz.Pixmap(pix).tobytes("pdf"))
-        new_doc.insert_pdf(img_pdf)
+        img_page = new_doc.new_page(width=pix.width, height=pix.height)
+        img_page.insert_image(img_page.rect, pixmap=pix)
     new_doc.save(output_path)
     new_doc.close()
     doc.close()
