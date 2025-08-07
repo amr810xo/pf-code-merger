@@ -1,4 +1,0 @@
-streamlit
-PyMuPDF
-reportlab
-fitz  # alias for PyMuPDF (if needed)
