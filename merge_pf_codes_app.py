@@ -3,10 +3,9 @@ import pandas as pd
 from PyPDF2 import PdfReader, PdfWriter
 import tempfile
 import os
-import zipfile
 import fitz  # PyMuPDF for cleaning PDFs
 
-st.title("📄 PF Code PDF Merger (Clean + Print-Ready)")
+st.title("📄 PF Code PDF Merger (Clean + Print-Ready, 50 pages per download)")
 
 # Upload CSV
 csv_file = st.file_uploader("Upload PF Code CSV (e.g. pf_codes_verified_complete.csv)", type=["csv"])
@@ -14,14 +13,14 @@ csv_file = st.file_uploader("Upload PF Code CSV (e.g. pf_codes_verified_complete
 # Upload PDFs
 pdf_files = st.file_uploader("Upload PF PDF files (e.g. PF01.pdf to PF26.pdf)", type=["pdf"], accept_multiple_files=True)
 
-# Batch size selector
-pages_per_batch = 100
+# Batch size
+batch_size = 50
 
 def clean_pdf(input_path, output_path):
     doc = fitz.open(input_path)
     new_doc = fitz.open()
     for page in doc:
-        pix = page.get_pixmap(dpi=300)
+        pix = page.get_pixmap(dpi=150)  # lower DPI to save memory
         img_page = new_doc.new_page(width=pix.width, height=pix.height)
         img_page.insert_image(img_page.rect, pixmap=pix)
     new_doc.save(output_path)
@@ -45,7 +44,6 @@ def process_uploaded_pdfs(uploaded_files, cleaned_dir):
 
 if csv_file and pdf_files and st.button("🔄 Clean & Merge PDFs"):
     with st.spinner("Processing PDFs and cleaning fonts..."):
-        progress = st.progress(0)
         df = pd.read_csv(csv_file)
         if "PF Code" not in df.columns:
             st.error("CSV must contain a 'PF Code' column.")
@@ -54,13 +52,12 @@ if csv_file and pdf_files and st.button("🔄 Clean & Merge PDFs"):
             temp_dir = tempfile.mkdtemp()
             cleaned_pdfs = process_uploaded_pdfs(pdf_files, temp_dir)
             total_pages = len(pf_codes)
-            batch_count = (total_pages + pages_per_batch - 1) // pages_per_batch
-            output_paths = []
+            batch_count = (total_pages + batch_size - 1) // batch_size
 
             for batch_num in range(batch_count):
                 writer = PdfWriter()
-                start = batch_num * pages_per_batch
-                end = min(start + pages_per_batch, total_pages)
+                start = batch_num * batch_size
+                end = min(start + batch_size, total_pages)
                 batch_codes = pf_codes[start:end]
 
                 for code in batch_codes:
@@ -77,18 +74,16 @@ if csv_file and pdf_files and st.button("🔄 Clean & Merge PDFs"):
                     else:
                         st.warning(f"Missing PDF for code: {code}")
 
-                out_path = os.path.join(temp_dir, f"compiled_batch_{batch_num + 1}.pdf")
+                out_path = os.path.join(temp_dir, f"batch_{batch_num + 1}.pdf")
                 with open(out_path, "wb") as f:
                     writer.write(f)
-                output_paths.append(out_path)
-                progress.progress((batch_num + 1) / batch_count)
 
-            zip_path = os.path.join(temp_dir, "compiled_batches.zip")
-            with zipfile.ZipFile(zip_path, "w") as zipf:
-                for path in output_paths:
-                    zipf.write(path, arcname=os.path.basename(path))
+                with open(out_path, "rb") as f:
+                    st.download_button(
+                        label=f"📥 Download Batch {batch_num + 1} ({len(batch_codes)} pages)",
+                        data=f,
+                        file_name=f"batch_{batch_num + 1}.pdf",
+                        mime="application/pdf"
+                    )
 
-            with open(zip_path, "rb") as f:
-                st.download_button("📥 Download ZIP of Batches", data=f, file_name="compiled_batches.zip", mime="application/zip")
-
-    st.success("Done! Your PDFs are cleaned and ready to print.")
+    st.success("All done! Download each batch above.")
