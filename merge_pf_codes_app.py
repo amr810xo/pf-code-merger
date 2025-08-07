@@ -5,8 +5,9 @@ from PyPDF2 import PdfReader, PdfWriter
 import tempfile
 import os
 import zipfile
+import fitz  # PyMuPDF for cleaning PDFs
 
-st.title("📄 PF Code PDF Merger")
+st.title("📄 PF Code PDF Merger (Clean + Print-Ready)")
 
 # Upload CSV
 csv_file = st.file_uploader("Upload PF Code CSV (e.g. pf_codes_verified_complete.csv)", type=["csv"])
@@ -17,24 +18,41 @@ pdf_files = st.file_uploader("Upload PF PDF files (e.g. PF01.pdf to PF26.pdf)", 
 # Batch size selector
 pages_per_batch = 100
 
+def clean_pdf(input_path, output_path):
+    doc = fitz.open(input_path)
+    new_doc = fitz.open()
+    for page in doc:
+        pix = page.get_pixmap(dpi=300)
+        img_pdf = fitz.open("pdf", fitz.Pixmap(pix).tobytes("pdf"))
+        new_doc.insert_pdf(img_pdf)
+    new_doc.save(output_path)
+    new_doc.close()
+    doc.close()
+
+def process_uploaded_pdfs(uploaded_files, cleaned_dir):
+    os.makedirs(cleaned_dir, exist_ok=True)
+    cleaned_paths = {}
+    for uploaded_file in uploaded_files:
+        input_path = os.path.join(cleaned_dir, "original_" + uploaded_file.name)
+        with open(input_path, "wb") as f:
+            f.write(uploaded_file.read())
+        output_path = os.path.join(cleaned_dir, uploaded_file.name)
+        clean_pdf(input_path, output_path)
+        cleaned_paths[os.path.splitext(uploaded_file.name)[0]] = output_path
+    return cleaned_paths
+
 # Run button
-if csv_file and pdf_files and st.button("🔄 Merge PDFs"):
-    with st.spinner("Processing..."):
+if csv_file and pdf_files and st.button("🔄 Clean & Merge PDFs"):
+    with st.spinner("Processing PDFs and cleaning fonts..."):
         progress = st.progress(0)
 
         # Load CSV
         df = pd.read_csv(csv_file)
         pf_codes = df["PF Code"].tolist()
 
-        # Save uploaded PDFs to temp folder
+        # Clean PDFs and save to temp dir
         temp_dir = tempfile.mkdtemp()
-        pdf_map = {}
-        for pdf in pdf_files:
-            name = os.path.splitext(pdf.name)[0]
-            path = os.path.join(temp_dir, pdf.name)
-            with open(path, "wb") as f:
-                f.write(pdf.read())
-            pdf_map[name] = path
+        cleaned_pdfs = process_uploaded_pdfs(pdf_files, temp_dir)
 
         # Build batches
         total_pages = len(pf_codes)
@@ -48,7 +66,7 @@ if csv_file and pdf_files and st.button("🔄 Merge PDFs"):
             batch_codes = pf_codes[start:end]
 
             for code in batch_codes:
-                pdf_path = pdf_map.get(code)
+                pdf_path = cleaned_pdfs.get(code)
                 if pdf_path and os.path.exists(pdf_path):
                     reader = PdfReader(pdf_path)
                     writer.add_page(reader.pages[0])
@@ -72,4 +90,4 @@ if csv_file and pdf_files and st.button("🔄 Merge PDFs"):
         with open(zip_path, "rb") as f:
             st.download_button("📥 Download ZIP of Batches", data=f, file_name="compiled_batches.zip", mime="application/zip")
 
-    st.success("Done!")
+    st.success("Done! Your PDFs are cleaned and ready to print.")
